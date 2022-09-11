@@ -22,6 +22,10 @@ use serenity::utils::Color;
 
 use tracing::{error, info};
 
+const ROCK: char = '\u{270A}';
+const PAPER: char = '\u{270B}';
+const SCISSORS: char = '\u{270C}';
+
 const SUCCESS_COLOR: Color = Color::from_rgb(140, 190, 218);
 const FAILURE_COLOR: Color = Color::from_rgb(239, 67, 63);
 const CONFIRMATION_COLOR: Color = Color::from_rgb(118, 255, 3);
@@ -179,19 +183,19 @@ impl EventHandler for Handler {
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270A}')
+                                                                                .emoji(ROCK)
                                                                                 .custom_id(format!("{}-rock", cmd.user.id))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270B}')
+                                                                                .emoji(PAPER)
                                                                                 .custom_id(format!("{}-paper", cmd.user.id))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270C}')
+                                                                                .emoji(SCISSORS)
                                                                                 .custom_id(format!("{}-scissors", cmd.user.id))
                                                                         })
                                                                         .create_button(|button| {
@@ -273,19 +277,19 @@ impl EventHandler for Handler {
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270A}')
+                                                                                .emoji(ROCK)
                                                                                 .custom_id(format!("{}-{}-rock", opponent.id, suffix))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270B}')
+                                                                                .emoji(PAPER)
                                                                                 .custom_id(format!("{}-{}-paper", opponent.id, suffix))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
-                                                                                .emoji('\u{270C}')
+                                                                                .emoji(SCISSORS)
                                                                                 .custom_id(format!("{}-{}-scissors", opponent.id, suffix))
                                                                         })
                                                                         .create_button(|button| {
@@ -349,15 +353,15 @@ impl EventHandler for Handler {
                                                             };
 
                                                             let winner_turn = match winner_turn {
-                                                                "rock" => "\u{270A} Rock",
-                                                                "paper" => "\u{270B} Paper",
-                                                                _ => "\u{270C} Scissors",
+                                                                "rock" => format!("${} Rock", ROCK),
+                                                                "paper" => format!("${} Paper", PAPER),
+                                                                _ => format!("${} Scissors", SCISSORS),
                                                             };
 
                                                             let loser_turn = match loser_turn {
-                                                                "rock" => "\u{270A} Rock",
-                                                                "paper" => "\u{270B} Paper",
-                                                                _ => "\u{270C} Scissors",
+                                                                "rock" => format!("${} Rock", ROCK),
+                                                                "paper" => format!("${} Paper", PAPER),
+                                                                _ => format!("${} Scissors", SCISSORS),
                                                             };
 
                                                             msg
@@ -400,19 +404,19 @@ impl EventHandler for Handler {
                                                                             .create_button(|button| {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
-                                                                                    .emoji('\u{270A}')
+                                                                                    .emoji(ROCK)
                                                                                     .custom_id(format!("{}-rock", cmd.user.id))
                                                                             })
                                                                             .create_button(|button| {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
-                                                                                    .emoji('\u{270B}')
+                                                                                    .emoji(PAPER)
                                                                                     .custom_id(format!("{}-paper", cmd.user.id))
                                                                             })
                                                                             .create_button(|button| {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
-                                                                                    .emoji('\u{270C}')
+                                                                                    .emoji(SCISSORS)
                                                                                     .custom_id(format!("{}-scissors", cmd.user.id))
                                                                             })
                                                                             .create_button(|button| {
