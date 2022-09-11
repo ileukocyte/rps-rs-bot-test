@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::env;
 use std::error::Error;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -7,6 +6,7 @@ use std::time::Duration;
 use lazy_static::lazy_static;
 
 use serenity::async_trait;
+use serenity::builder::{CreateActionRow, CreateEmbed};
 use serenity::Client;
 use serenity::client::{Context, EventHandler};
 use serenity::futures::StreamExt;
@@ -17,6 +17,7 @@ use serenity::model::gateway::Ready;
 use serenity::model::id::{ChannelId, GuildId, MessageId};
 use serenity::model::prelude::component::ComponentType;
 use serenity::model::prelude::interaction::application_command::CommandDataOptionValue;
+use serenity::model::user::User;
 use serenity::prelude::{GatewayIntents, Mentionable};
 use serenity::utils::Color;
 
@@ -80,7 +81,7 @@ impl EventHandler for Handler {
                 let option = &cmd.data.options[0];
 
                 if let Some(CommandDataOptionValue::User(opponent, _)) = &option.resolved {
-                    let starter = cmd.user;
+                    let starter = &cmd.user;
 
                     if opponent.bot || opponent.id == starter.id {
                         if let Err(_) = cmd.create_interaction_response(&ctx.http, |response| {
@@ -160,13 +161,66 @@ impl EventHandler for Handler {
                             (*opponent.id.as_u64(), *response.id.as_u64()),
                         ]);
 
+                        let mut round_counter = 1usize;
+
+                        let round_embed = |user: &User, round_counter: usize| {
+                            let mut embed = CreateEmbed::default();
+
+                            embed
+                                .color(SUCCESS_COLOR)
+                                .author(|author| {
+                                    author
+                                        .name(format!("Round #{}", round_counter))
+                                        .icon_url(
+                                            user.avatar_url()
+                                                .unwrap_or_else(|| user.default_avatar_url())
+                                        )
+                                })
+                                .description(format!("It is {}'s turn!", user.mention()));
+
+                            embed
+                        };
+
+                        let turn_action_row = |users: Vec<String>| {
+                            let ids_joined = users.join("-");
+
+                            let mut row = CreateActionRow::default();
+
+                            row
+                                .create_button(|button| {
+                                    button
+                                        .style(ButtonStyle::Secondary)
+                                        .emoji(ROCK)
+                                        .custom_id(format!("{}-rock", ids_joined))
+                                })
+                                .create_button(|button| {
+                                    button
+                                        .style(ButtonStyle::Secondary)
+                                        .emoji(PAPER)
+                                        .custom_id(format!("{}-paper", ids_joined))
+                                })
+                                .create_button(|button| {
+                                    button
+                                        .style(ButtonStyle::Secondary)
+                                        .emoji(SCISSORS)
+                                        .custom_id(format!("{}-scissors", ids_joined))
+                                })
+                                .create_button(|button| {
+                                    button
+                                        .style(ButtonStyle::Danger)
+                                        .label("Exit")
+                                        .custom_id("stop")
+                                });
+
+                            row
+                        };
+
                         let mut interaction_stream = response.await_component_interactions(&ctx)
                             .filter(|i| i.data.component_type == ComponentType::Button)
                             .timeout(Duration::from_secs(60 * 5))
                             .build();
 
                         while let Some(interaction) = interaction_stream.next().await {
-                            let mut round_counter = 1usize;
                             let id: Vec<_> = interaction.data.custom_id.split('-').collect();
                             let suffix = *id.last().unwrap();
 
@@ -179,49 +233,9 @@ impl EventHandler for Handler {
                                                     .kind(InteractionResponseType::UpdateMessage)
                                                     .interaction_response_data(|msg| {
                                                         msg
-                                                            .components(|comp| {
-                                                                comp.create_action_row(|row| {
-                                                                    row
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(ROCK)
-                                                                                .custom_id(format!("{}-rock", starter.id))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(PAPER)
-                                                                                .custom_id(format!("{}-paper", starter.id))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(SCISSORS)
-                                                                                .custom_id(format!("{}-scissors", starter.id))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Danger)
-                                                                                .label("Exit")
-                                                                                .custom_id("stop")
-                                                                        })
-                                                                })
-                                                            })
+                                                            .components(|comp| comp.set_action_row(turn_action_row(vec![starter.id.to_string()])))
                                                             .content("")
-                                                            .embed(|embed| {
-                                                                embed
-                                                                    .color(SUCCESS_COLOR)
-                                                                    .author(|author| {
-                                                                        author
-                                                                            .name(format!("Round #{}!", round_counter))
-                                                                            .icon_url(
-                                                                                starter.avatar_url()
-                                                                                    .unwrap_or_else(|| starter.default_avatar_url())
-                                                                            )
-                                                                    })
-                                                                    .description(format!("It is {}'s turn!", starter.mention()))
-                                                            })
+                                                            .set_embed(round_embed(starter, round_counter))
                                                     })
                                             }).await {}
                                         } else {
@@ -273,48 +287,8 @@ impl EventHandler for Handler {
                                                     .kind(InteractionResponseType::UpdateMessage)
                                                     .interaction_response_data(|msg| {
                                                         msg
-                                                            .components(|comp| {
-                                                                comp.create_action_row(|row| {
-                                                                    row
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(ROCK)
-                                                                                .custom_id(format!("{}-{}-rock", opponent.id, suffix))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(PAPER)
-                                                                                .custom_id(format!("{}-{}-paper", opponent.id, suffix))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Secondary)
-                                                                                .emoji(SCISSORS)
-                                                                                .custom_id(format!("{}-{}-scissors", opponent.id, suffix))
-                                                                        })
-                                                                        .create_button(|button| {
-                                                                            button
-                                                                                .style(ButtonStyle::Danger)
-                                                                                .label("Exit")
-                                                                                .custom_id("stop")
-                                                                        })
-                                                                })
-                                                            })
-                                                            .embed(|embed| {
-                                                                embed
-                                                                    .color(SUCCESS_COLOR)
-                                                                    .author(|author| {
-                                                                        author
-                                                                            .name(format!("Round #{}!", round_counter))
-                                                                            .icon_url(
-                                                                                opponent.avatar_url()
-                                                                                    .unwrap_or_else(|| opponent.default_avatar_url())
-                                                                            )
-                                                                    })
-                                                                    .description(format!("It is {}'s turn!", opponent.mention()))
-                                                            })
+                                                            .components(|comp| comp.set_action_row(turn_action_row(vec![opponent.id.to_string(), suffix.to_string()])))
+                                                            .set_embed(round_embed(opponent, round_counter))
                                                     })
                                             }).await {}
                                         } else {
@@ -325,16 +299,16 @@ impl EventHandler for Handler {
                                                 "rock" => match opponent_turn {
                                                     "rock" => None,
                                                     "paper" => Some(opponent),
-                                                    _ => Some(&starter),
+                                                    _ => Some(starter),
                                                 },
                                                 "paper" => match opponent_turn {
-                                                    "rock" => Some(&starter),
+                                                    "rock" => Some(starter),
                                                     "paper" => None,
                                                     _ => Some(opponent),
                                                 },
                                                 _ => match opponent_turn {
                                                     "rock" => Some(opponent),
-                                                    "paper" => Some(&starter),
+                                                    "paper" => Some(starter),
                                                     _ => None,
                                                 },
                                             };
@@ -350,10 +324,10 @@ impl EventHandler for Handler {
                                                                 opponent_turn
                                                             };
 
-                                                            let loser_turn = if winner.id == starter.id {
-                                                                opponent_turn
+                                                            let (loser, loser_turn) = if winner.id == starter.id {
+                                                                (opponent, opponent_turn)
                                                             } else {
-                                                                starter_turn
+                                                                (starter, starter_turn)
                                                             };
 
                                                             let formatted_turn = |turn| match turn {
@@ -375,7 +349,7 @@ impl EventHandler for Handler {
                                                                                         .unwrap_or_else(|| winner.default_avatar_url())
                                                                                 )
                                                                         })
-                                                                        .description(format!("{} wins!", winner.mention()))
+                                                                        .description(format!("{} defeats {}!", winner.mention(), loser.mention()))
                                                                         .field("Winner's Turn", formatted_turn(winner_turn), false)
                                                                         .field("Loser's Turn", formatted_turn(loser_turn), false)
                                                                 })
@@ -425,19 +399,7 @@ impl EventHandler for Handler {
                                                                             })
                                                                     })
                                                                 })
-                                                                .embed(|embed| {
-                                                                    embed
-                                                                        .color(SUCCESS_COLOR)
-                                                                        .author(|author| {
-                                                                            author
-                                                                                .name(format!("Round #{}!", round_counter))
-                                                                                .icon_url(
-                                                                                    starter.avatar_url()
-                                                                                        .unwrap_or_else(|| starter.default_avatar_url())
-                                                                                )
-                                                                        })
-                                                                        .description(format!("It is {}'s turn!", starter.mention()))
-                                                                })
+                                                                .set_embed(round_embed(starter, round_counter))
                                                         })
                                                 }).await {}
                                             }
@@ -500,14 +462,14 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     {
-        env::set_var("RUST_LOG", "DEBUG");
+        std::env::set_var("RUST_LOG", "DEBUG");
 
         tracing_subscriber::fmt::init();
 
         info!("Starting!");
     }
 
-    let token = env::var("DISCORD_TOKEN")?;
+    let token = std::env::var("DISCORD_TOKEN")?;
     let intents = GatewayIntents::all();
 
     let mut client = Client::builder(&token, intents)
