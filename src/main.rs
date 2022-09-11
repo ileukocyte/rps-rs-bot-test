@@ -353,15 +353,15 @@ impl EventHandler for Handler {
                                                             };
 
                                                             let winner_turn = match winner_turn {
-                                                                "rock" => format!("${} Rock", ROCK),
-                                                                "paper" => format!("${} Paper", PAPER),
-                                                                _ => format!("${} Scissors", SCISSORS),
+                                                                "rock" => format!("{} Rock", ROCK),
+                                                                "paper" => format!("{} Paper", PAPER),
+                                                                _ => format!("{} Scissors", SCISSORS),
                                                             };
 
                                                             let loser_turn = match loser_turn {
-                                                                "rock" => format!("${} Rock", ROCK),
-                                                                "paper" => format!("${} Paper", PAPER),
-                                                                _ => format!("${} Scissors", SCISSORS),
+                                                                "rock" => format!("{} Rock", ROCK),
+                                                                "paper" => format!("{} Paper", PAPER),
+                                                                _ => format!("{} Scissors", SCISSORS),
                                                             };
 
                                                             msg
