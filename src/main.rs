@@ -80,7 +80,9 @@ impl EventHandler for Handler {
                 let option = &cmd.data.options[0];
 
                 if let Some(CommandDataOptionValue::User(opponent, _)) = &option.resolved {
-                    if opponent.bot || opponent.id == cmd.user.id {
+                    let starter = cmd.user;
+
+                    if opponent.bot || opponent.id == starter.id {
                         if let Err(_) = cmd.create_interaction_response(&ctx.http, |response| {
                             response
                                 .kind(InteractionResponseType::ChannelMessageWithSource)
@@ -99,7 +101,7 @@ impl EventHandler for Handler {
                         return;
                     }
 
-                    if SESSIONS.lock().unwrap().iter().any(|(u, _)| u == cmd.user.id.as_u64() || u == opponent.id.as_u64()) {
+                    if SESSIONS.lock().unwrap().iter().any(|(u, _)| u == starter.id.as_u64() || u == opponent.id.as_u64()) {
                         if let Err(_) = cmd.create_interaction_response(&ctx.http, |response| {
                             response
                                 .kind(InteractionResponseType::ChannelMessageWithSource)
@@ -129,7 +131,7 @@ impl EventHandler for Handler {
                                             .author(|a| a.name("Confirmation!"))
                                             .color(CONFIRMATION_COLOR)
                                             .description(
-                                                format!("Do you want to play rock-paper-scissors against {}?", cmd.user.mention())
+                                                format!("Do you want to play rock-paper-scissors against {}?", starter.mention())
                                             )
                                     })
                                     .components(|comp| {
@@ -154,7 +156,7 @@ impl EventHandler for Handler {
 
                     if let Ok(response) = cmd.get_interaction_response(&ctx.http).await {
                         SESSIONS.lock().unwrap().extend([
-                            (*cmd.user.id.as_u64(), *response.id.as_u64()),
+                            (*starter.id.as_u64(), *response.id.as_u64()),
                             (*opponent.id.as_u64(), *response.id.as_u64()),
                         ]);
 
@@ -165,7 +167,7 @@ impl EventHandler for Handler {
 
                         while let Some(interaction) = interaction_stream.next().await {
                             let mut round_counter = 1usize;
-                            let id: Vec<_> = interaction.data.custom_id.split("-").collect();
+                            let id: Vec<_> = interaction.data.custom_id.split('-').collect();
                             let suffix = *id.last().unwrap();
 
                             match suffix {
@@ -184,19 +186,19 @@ impl EventHandler for Handler {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
                                                                                 .emoji(ROCK)
-                                                                                .custom_id(format!("{}-rock", cmd.user.id))
+                                                                                .custom_id(format!("{}-rock", starter.id))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
                                                                                 .emoji(PAPER)
-                                                                                .custom_id(format!("{}-paper", cmd.user.id))
+                                                                                .custom_id(format!("{}-paper", starter.id))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
                                                                                 .style(ButtonStyle::Secondary)
                                                                                 .emoji(SCISSORS)
-                                                                                .custom_id(format!("{}-scissors", cmd.user.id))
+                                                                                .custom_id(format!("{}-scissors", starter.id))
                                                                         })
                                                                         .create_button(|button| {
                                                                             button
@@ -214,11 +216,11 @@ impl EventHandler for Handler {
                                                                         author
                                                                             .name(format!("Round #{}!", round_counter))
                                                                             .icon_url(
-                                                                                cmd.user.avatar_url()
-                                                                                    .unwrap_or_else(|| cmd.user.default_avatar_url())
+                                                                                starter.avatar_url()
+                                                                                    .unwrap_or_else(|| starter.default_avatar_url())
                                                                             )
                                                                     })
-                                                                    .description(format!("It is {}'s turn!", cmd.user.mention()))
+                                                                    .description(format!("It is {}'s turn!", starter.mention()))
                                                             })
                                                     })
                                             }).await {}
@@ -229,7 +231,7 @@ impl EventHandler for Handler {
                                                     .interaction_response_data(|msg| {
                                                         msg
                                                             .components(|comp| comp)
-                                                            .content(cmd.user.mention())
+                                                            .content(starter.mention())
                                                             .embed(|embed| {
                                                                 embed
                                                                     .author(|a| a.name("Failure!"))
@@ -242,7 +244,7 @@ impl EventHandler for Handler {
                                             let mut sessions = SESSIONS.lock().unwrap();
 
                                             sessions.remove(&(*opponent.id.as_u64(), *response.id.as_u64()));
-                                            sessions.remove(&(*cmd.user.id.as_u64(), *response.id.as_u64()));
+                                            sessions.remove(&(*starter.id.as_u64(), *response.id.as_u64()));
 
                                             break;
                                         }
@@ -265,7 +267,7 @@ impl EventHandler for Handler {
                                 },
                                 "rock" | "paper" | "scissors" => {
                                     if interaction.user.id.to_string().as_str() == id[0] {
-                                        if interaction.user.id == cmd.user.id {
+                                        if interaction.user.id == starter.id {
                                             if let Err(_) = interaction.create_interaction_response(&ctx.http, |response| {
                                                 response
                                                     .kind(InteractionResponseType::UpdateMessage)
@@ -317,20 +319,22 @@ impl EventHandler for Handler {
                                             }).await {}
                                         } else {
                                             let starter_turn = id[1];
+                                            let opponent_turn = suffix;
+
                                             let winner = match starter_turn {
-                                                "rock" => match suffix {
+                                                "rock" => match opponent_turn {
                                                     "rock" => None,
                                                     "paper" => Some(opponent),
-                                                    _ => Some(&cmd.user),
+                                                    _ => Some(&starter),
                                                 },
-                                                "paper" => match suffix {
-                                                    "rock" => Some(&cmd.user),
+                                                "paper" => match opponent_turn {
+                                                    "rock" => Some(&starter),
                                                     "paper" => None,
                                                     _ => Some(opponent),
                                                 },
-                                                _ => match suffix {
+                                                _ => match opponent_turn {
                                                     "rock" => Some(opponent),
-                                                    "paper" => Some(&cmd.user),
+                                                    "paper" => Some(&starter),
                                                     _ => None,
                                                 },
                                             };
@@ -340,25 +344,19 @@ impl EventHandler for Handler {
                                                     response
                                                         .kind(InteractionResponseType::UpdateMessage)
                                                         .interaction_response_data(|msg| {
-                                                            let winner_turn = if winner.id == cmd.user.id {
+                                                            let winner_turn = if winner.id == starter.id {
                                                                 starter_turn
                                                             } else {
-                                                                suffix
+                                                                opponent_turn
                                                             };
 
-                                                            let loser_turn = if winner.id == cmd.user.id {
-                                                                suffix
+                                                            let loser_turn = if winner.id == starter.id {
+                                                                opponent_turn
                                                             } else {
                                                                 starter_turn
                                                             };
 
-                                                            let winner_turn = match winner_turn {
-                                                                "rock" => format!("{} Rock", ROCK),
-                                                                "paper" => format!("{} Paper", PAPER),
-                                                                _ => format!("{} Scissors", SCISSORS),
-                                                            };
-
-                                                            let loser_turn = match loser_turn {
+                                                            let formatted_turn = |turn| match turn {
                                                                 "rock" => format!("{} Rock", ROCK),
                                                                 "paper" => format!("{} Paper", PAPER),
                                                                 _ => format!("{} Scissors", SCISSORS),
@@ -378,8 +376,8 @@ impl EventHandler for Handler {
                                                                                 )
                                                                         })
                                                                         .description(format!("{} wins!", winner.mention()))
-                                                                        .field("Winner's Turn", winner_turn, false)
-                                                                        .field("Loser's Turn", loser_turn, false)
+                                                                        .field("Winner's Turn", formatted_turn(winner_turn), false)
+                                                                        .field("Loser's Turn", formatted_turn(loser_turn), false)
                                                                 })
                                                         })
                                                 }).await {}
@@ -387,7 +385,7 @@ impl EventHandler for Handler {
                                                 let mut sessions = SESSIONS.lock().unwrap();
 
                                                 sessions.remove(&(*opponent.id.as_u64(), *response.id.as_u64()));
-                                                sessions.remove(&(*cmd.user.id.as_u64(), *response.id.as_u64()));
+                                                sessions.remove(&(*starter.id.as_u64(), *response.id.as_u64()));
 
                                                 break;
                                             } else {
@@ -405,19 +403,19 @@ impl EventHandler for Handler {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
                                                                                     .emoji(ROCK)
-                                                                                    .custom_id(format!("{}-rock", cmd.user.id))
+                                                                                    .custom_id(format!("{}-rock", starter.id))
                                                                             })
                                                                             .create_button(|button| {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
                                                                                     .emoji(PAPER)
-                                                                                    .custom_id(format!("{}-paper", cmd.user.id))
+                                                                                    .custom_id(format!("{}-paper", starter.id))
                                                                             })
                                                                             .create_button(|button| {
                                                                                 button
                                                                                     .style(ButtonStyle::Secondary)
                                                                                     .emoji(SCISSORS)
-                                                                                    .custom_id(format!("{}-scissors", cmd.user.id))
+                                                                                    .custom_id(format!("{}-scissors", starter.id))
                                                                             })
                                                                             .create_button(|button| {
                                                                                 button
@@ -434,11 +432,11 @@ impl EventHandler for Handler {
                                                                             author
                                                                                 .name(format!("Round #{}!", round_counter))
                                                                                 .icon_url(
-                                                                                    cmd.user.avatar_url()
-                                                                                        .unwrap_or_else(|| cmd.user.default_avatar_url())
+                                                                                    starter.avatar_url()
+                                                                                        .unwrap_or_else(|| starter.default_avatar_url())
                                                                                 )
                                                                         })
-                                                                        .description(format!("It is {}'s turn!", cmd.user.mention()))
+                                                                        .description(format!("It is {}'s turn!", starter.mention()))
                                                                 })
                                                         })
                                                 }).await {}
@@ -455,7 +453,7 @@ impl EventHandler for Handler {
                                                             embed
                                                                 .author(|a| a.name("Failure!"))
                                                                 .color(FAILURE_COLOR)
-                                                                .description(if id[0] != cmd.user.id.to_string().as_str()
+                                                                .description(if id[0] != starter.id.to_string().as_str()
                                                                     && id[0] != opponent.id.to_string().as_str()
                                                                 {
                                                                     "You did not invoke the initial command!"
@@ -486,7 +484,7 @@ impl EventHandler for Handler {
                                     let mut sessions = SESSIONS.lock().unwrap();
 
                                     sessions.remove(&(*opponent.id.as_u64(), *response.id.as_u64()));
-                                    sessions.remove(&(*cmd.user.id.as_u64(), *response.id.as_u64()));
+                                    sessions.remove(&(*starter.id.as_u64(), *response.id.as_u64()));
 
                                     break;
                                 }
