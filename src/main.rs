@@ -20,7 +20,7 @@ use serenity::model::prelude::interaction::application_command::CommandDataOptio
 use serenity::prelude::{GatewayIntents, Mentionable};
 use serenity::utils::Color;
 
-use tracing::info;
+use tracing::{error, info};
 
 const SUCCESS_COLOR: Color = Color::from_rgb(140, 190, 218);
 const FAILURE_COLOR: Color = Color::from_rgb(239, 67, 63);
@@ -50,19 +50,21 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, ctx: Context, _ready: Ready) {
-        if !ctx.http.get_global_application_commands().await.unwrap().iter().any(|cmd| cmd.name == "tic-tac-toe") {
+        if !ctx.http.get_global_application_commands().await.unwrap().iter().any(|cmd| cmd.name == "rps") {
             Command::create_global_application_command(&ctx.http, |cmd| {
                 cmd
-                    .name("tic-tac-toe")
-                    .description("Starts the tic-tac-toe game against the specified user")
+                    .name("rps")
+                    .description("Starts the rock-paper-scissors game against the specified user")
                     .create_option(|option| {
                         option
                             .name("opponent")
-                            .description("The user to play tic-tac-toe against")
+                            .description("The user to play rock-paper-scissors against")
                             .kind(CommandOptionType::User)
                             .required(true)
                     })
-            }).await.expect("The tic-tac-toe command could not have been registered!");
+            }).await.expect("The rock-paper-scissors command could not have been registered!");
+
+            info!("The rock-paper-scissors command has been registered!");
         }
 
         info!("Connected to Discord!");
@@ -70,7 +72,7 @@ impl EventHandler for Handler {
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(cmd) = interaction {
-            if cmd.data.name == "tic-tac-toe" {
+            if cmd.data.name == "rps" {
                 let option = &cmd.data.options[0];
 
                 if let Some(CommandDataOptionValue::User(opponent, _)) = &option.resolved {
@@ -104,7 +106,7 @@ impl EventHandler for Handler {
                                             embed
                                                 .author(|a| a.name("Failure!"))
                                                 .color(FAILURE_COLOR)
-                                                .description("Either user is already playing tic-tac-toe!")
+                                                .description("Either user is already playing rock-paper-scissors!")
                                         })
                                 })
                         }).await {}
@@ -123,7 +125,7 @@ impl EventHandler for Handler {
                                             .author(|a| a.name("Confirmation!"))
                                             .color(CONFIRMATION_COLOR)
                                             .description(
-                                                format!("Do you want to play tic-tac-toe against {}?", cmd.user.mention())
+                                                format!("Do you want to play rock-paper-scissors against {}?", cmd.user.mention())
                                             )
                                     })
                                     .components(|comp| {
@@ -372,8 +374,8 @@ impl EventHandler for Handler {
                                                                                 )
                                                                         })
                                                                         .description(format!("{} wins!", winner.mention()))
-                                                                        .field("Winner's Turn", winner_turn, true)
-                                                                        .field("Loser's Turn", loser_turn, true)
+                                                                        .field("Winner's Turn", winner_turn, false)
+                                                                        .field("Loser's Turn", loser_turn, false)
                                                                 })
                                                         })
                                                 }).await {}
@@ -511,7 +513,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await?;
 
     if let Err(err) = client.start().await {
-        println!("An error occurred while running the client: {:?}", err);
+        error!("An error occurred while running the client: {:?}", err);
     }
 
     Ok(())
